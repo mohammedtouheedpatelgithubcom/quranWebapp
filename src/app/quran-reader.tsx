@@ -93,7 +93,7 @@ const DEMO_COMMUNITY_POSTS: CommunityPost[] = [
     chapter: 55,
     verse: 13,
     body: "I paired today's recitation with one gratitude note. The rhythm made it stick.",
-    created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    created_at: "2026-06-05T18:15:00.000Z",
     likes_count: 18,
   },
   {
@@ -102,7 +102,7 @@ const DEMO_COMMUNITY_POSTS: CommunityPost[] = [
     chapter: 18,
     verse: 10,
     body: "A 5 minute reading sprint and one bookmark is enough to keep the habit alive.",
-    created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    created_at: "2026-06-05T16:40:00.000Z",
     likes_count: 11,
   },
   {
@@ -111,7 +111,7 @@ const DEMO_COMMUNITY_POSTS: CommunityPost[] = [
     chapter: 94,
     verse: 5,
     body: "I keep returning to this verse when my day feels compressed.",
-    created_at: new Date(Date.now() - 1000 * 60 * 220).toISOString(),
+    created_at: "2026-06-05T15:00:00.000Z",
     likes_count: 24,
   },
 ];
@@ -119,6 +119,8 @@ const DEMO_COMMUNITY_POSTS: CommunityPost[] = [
 const DEFAULT_TRANSLATION = "eng-abdullahyusufal";
 const BOOKMARKS_STORAGE_KEY = "noor-bookmarks";
 const PROGRESS_STORAGE_KEY = "noor-progress";
+const LOCAL_AUTH_USERS_KEY = "noor-local-auth-users";
+const LOCAL_AUTH_SESSION_KEY = "noor-local-auth-session";
 const MAX_PREVIEW_VERSES = 12;
 const RECITER = "AbdulSamad_64kbps_QuranExplorer.Com";
 const AUDIO_BASE = `https://everyayah.com/data/${RECITER}`;
@@ -179,6 +181,48 @@ function loadLocalStorageSet(storageKey: string) {
   }
 
   return new Set<string>();
+}
+
+function loadLocalJson<T>(storageKey: string, fallback: T) {
+  if (typeof window === "undefined") return fallback;
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveLocalJson(storageKey: string, value: unknown) {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.setItem(storageKey, JSON.stringify(value));
+}
+
+function createLocalSession(email: string) {
+  const id = `local-${email.toLowerCase()}`;
+  return {
+    access_token: id,
+    token_type: "bearer",
+    user: {
+      id,
+      email,
+      app_metadata: {},
+      user_metadata: {},
+      aud: "authenticated",
+      created_at: new Date().toISOString(),
+    },
+  } as Session;
+}
+
+function loadLocalProfile(userId: string, chapterNumber: number) {
+  if (typeof window === "undefined") {
+    return createFallbackProfile(chapterNumber);
+  }
+
+  return loadLocalJson<UserProfile | null>(`noor-local-profile-${userId}`, null) ?? createFallbackProfile(chapterNumber);
 }
 
 function formatRelativeTime(timestamp: string) {
@@ -264,10 +308,19 @@ export default function QuranReader({
 
   useEffect(() => {
     if (!supabase) {
-      setProfile(createFallbackProfile(initialChapter));
-      setDisplayName(DEMO_PROFILE.display_name);
-      setLearningTheme(DEMO_PROFILE.learning_theme);
-      setGoalInput(String(DEMO_PROFILE.daily_goal));
+      const savedSession = loadLocalJson<Session | null>(LOCAL_AUTH_SESSION_KEY, null);
+      if (savedSession) {
+        setSession(savedSession);
+        setProfile(loadLocalProfile(savedSession.user.id, initialChapter));
+        setDisplayName(loadLocalProfile(savedSession.user.id, initialChapter).display_name);
+        setLearningTheme(loadLocalProfile(savedSession.user.id, initialChapter).learning_theme);
+        setGoalInput(String(loadLocalProfile(savedSession.user.id, initialChapter).daily_goal));
+      } else {
+        setProfile(createFallbackProfile(initialChapter));
+        setDisplayName(DEMO_PROFILE.display_name);
+        setLearningTheme(DEMO_PROFILE.learning_theme);
+        setGoalInput(String(DEMO_PROFILE.daily_goal));
+      }
       return;
     }
 
@@ -450,7 +503,60 @@ export default function QuranReader({
 
   async function handleAuthSubmit() {
     if (!supabase) {
-      setAuthStatus("Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable signups.");
+      const email = authEmail.trim().toLowerCase();
+      const password = authPassword.trim();
+
+      if (!email || !password) {
+        setAuthStatus("Enter both email and password.");
+        return;
+      }
+
+      const users = loadLocalJson<Array<{ id: string; email: string; password: string }>>(LOCAL_AUTH_USERS_KEY, []);
+
+      if (authMode === "signup") {
+        const existing = users.find((user) => user.email === email);
+        if (existing) {
+          setAuthStatus("This email already has a local demo account.");
+          return;
+        }
+
+        const nextUser = { id: `local-${email}`, email, password };
+        users.push(nextUser);
+        saveLocalJson(LOCAL_AUTH_USERS_KEY, users);
+        const nextSession = createLocalSession(email);
+        setSession(nextSession);
+        saveLocalJson(LOCAL_AUTH_SESSION_KEY, nextSession);
+
+        const nextProfile = createFallbackProfile(initialChapter);
+        setProfile(nextProfile);
+        setDisplayName(nextProfile.display_name);
+        setLearningTheme(nextProfile.learning_theme);
+        setGoalInput(String(nextProfile.daily_goal));
+        saveLocalJson(`noor-local-profile-${nextSession.user.id}`, nextProfile);
+
+        setAuthStatus("Local demo signup created. You can now sign in on this browser.");
+        setAuthPassword("");
+        return;
+      }
+
+      const existing = users.find((user) => user.email === email && user.password === password);
+      if (!existing) {
+        setAuthStatus("Local demo login failed. Check your email and password or create a new account.");
+        return;
+      }
+
+      const nextSession = createLocalSession(email);
+      setSession(nextSession);
+      saveLocalJson(LOCAL_AUTH_SESSION_KEY, nextSession);
+
+      const nextProfile = loadLocalProfile(nextSession.user.id, initialChapter);
+      setProfile(nextProfile);
+      setDisplayName(nextProfile.display_name);
+      setLearningTheme(nextProfile.learning_theme);
+      setGoalInput(String(nextProfile.daily_goal));
+
+      setAuthStatus("Signed in locally in demo mode.");
+      setAuthPassword("");
       return;
     }
 
@@ -485,6 +591,12 @@ export default function QuranReader({
       await supabase.auth.signOut();
     }
 
+    if (!supabase) {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(LOCAL_AUTH_SESSION_KEY);
+      }
+    }
+
     setSession(null);
     setProfile(createFallbackProfile(chapterNumber));
     setCommunityPosts(DEMO_COMMUNITY_POSTS);
@@ -505,6 +617,9 @@ export default function QuranReader({
     setProfile(nextProfile);
 
     if (!supabase || !session?.user) {
+      if (session?.user) {
+        saveLocalJson(`noor-local-profile-${session.user.id}`, nextProfile);
+      }
       setAuthStatus("Profile saved locally in demo mode.");
       return;
     }

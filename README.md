@@ -15,6 +15,7 @@ You can start editing the page by modifying `src/app/page.tsx` and `src/app/qura
 ## Backend Setup
 
 The app works in demo mode without backend credentials, but signups, profile sync, bookmarks, progress, and community posts are enabled when Supabase is configured.
+In demo mode, the login and signup controls still work locally in this browser so you can test the flow without a backend.
 
 1. Create a Supabase project.
 2. Run the SQL in `supabase/schema.sql` in the Supabase SQL editor.

@@ -96,8 +96,8 @@ export default async function Page({ searchParams }: QuranPageProps) {
 
   const [info, arabicResponse, translationResponse] = await Promise.all([
     fetchJson<QuranInfo>("info"),
-    fetchJson<ChapterResponse>(`${ARABIC_EDITION}/${chapterNumber}`),
-    fetchJson<ChapterResponse>(`${translationSlug}/${chapterNumber}`),
+    fetchJson<ChapterResponse>(`editions/${ARABIC_EDITION}/${chapterNumber}`),
+    fetchJson<ChapterResponse>(`editions/${translationSlug}/${chapterNumber}`),
   ]);
 
   return (
