@@ -1,0 +1,224 @@
+create extension if not exists pgcrypto;
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  display_name text not null default 'Guest Reader',
+  favorite_chapter integer not null default 1,
+  daily_goal integer not null default 7,
+  streak_count integer not null default 0,
+  learning_theme text not null default 'Consistency and reflection',
+  last_seen_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.bookmarks (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  chapter integer not null,
+  verse integer not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, chapter, verse)
+);
+
+create table if not exists public.progress_entries (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  chapter integer not null,
+  verse integer not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, chapter, verse)
+);
+
+create table if not exists public.community_posts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  display_name text not null,
+  chapter integer not null,
+  verse integer,
+  body text not null,
+  likes_count integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+alter table public.bookmarks enable row level security;
+alter table public.progress_entries enable row level security;
+alter table public.community_posts enable row level security;
+
+do $$
+begin
+  create policy "Profiles are visible to the owning user"
+    on public.profiles
+    for select
+    using (auth.uid() = id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Profiles can be inserted by the owning user"
+    on public.profiles
+    for insert
+    with check (auth.uid() = id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Profiles can be updated by the owning user"
+    on public.profiles
+    for update
+    using (auth.uid() = id)
+    with check (auth.uid() = id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Bookmarks are visible to the owning user"
+    on public.bookmarks
+    for select
+    using (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Bookmarks can be inserted by the owning user"
+    on public.bookmarks
+    for insert
+    with check (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Bookmarks can be updated by the owning user"
+    on public.bookmarks
+    for update
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Bookmarks can be deleted by the owning user"
+    on public.bookmarks
+    for delete
+    using (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Progress is visible to the owning user"
+    on public.progress_entries
+    for select
+    using (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Progress can be inserted by the owning user"
+    on public.progress_entries
+    for insert
+    with check (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Progress can be updated by the owning user"
+    on public.progress_entries
+    for update
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Progress can be deleted by the owning user"
+    on public.progress_entries
+    for delete
+    using (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Community posts are readable by authenticated users"
+    on public.community_posts
+    for select
+    to authenticated
+    using (true);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Community posts can be created by authenticated users"
+    on public.community_posts
+    for insert
+    to authenticated
+    with check (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Community posts can be updated by their author"
+    on public.community_posts
+    for update
+    to authenticated
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create policy "Community posts can be deleted by their author"
+    on public.community_posts
+    for delete
+    to authenticated
+    using (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists set_profiles_updated_at on public.profiles;
+create trigger set_profiles_updated_at
+before update on public.profiles
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_community_posts_updated_at on public.community_posts;
+create trigger set_community_posts_updated_at
+before update on public.community_posts
+for each row execute function public.set_updated_at();
