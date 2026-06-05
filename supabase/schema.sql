@@ -3,9 +3,9 @@ create extension if not exists pgcrypto;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null default 'Guest Reader',
-  favorite_chapter integer not null default 1,
-  daily_goal integer not null default 7,
-  streak_count integer not null default 0,
+  favorite_chapter integer not null default 1 check (favorite_chapter between 1 and 114),
+  daily_goal integer not null default 7 check (daily_goal between 1 and 300),
+  streak_count integer not null default 0 check (streak_count >= 0),
   learning_theme text not null default 'Consistency and reflection',
   last_seen_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
@@ -14,16 +14,16 @@ create table if not exists public.profiles (
 
 create table if not exists public.bookmarks (
   user_id uuid not null references auth.users(id) on delete cascade,
-  chapter integer not null,
-  verse integer not null,
+  chapter integer not null check (chapter between 1 and 114),
+  verse integer not null check (verse >= 1),
   created_at timestamptz not null default now(),
   primary key (user_id, chapter, verse)
 );
 
 create table if not exists public.progress_entries (
   user_id uuid not null references auth.users(id) on delete cascade,
-  chapter integer not null,
-  verse integer not null,
+  chapter integer not null check (chapter between 1 and 114),
+  verse integer not null check (verse >= 1),
   created_at timestamptz not null default now(),
   primary key (user_id, chapter, verse)
 );
@@ -32,13 +32,22 @@ create table if not exists public.community_posts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   display_name text not null,
-  chapter integer not null,
-  verse integer,
-  body text not null,
-  likes_count integer not null default 0,
+  chapter integer not null check (chapter between 1 and 114),
+  verse integer check (verse is null or verse >= 1),
+  body text not null check (char_length(body) between 1 and 1200),
+  likes_count integer not null default 0 check (likes_count >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create index if not exists bookmarks_user_created_idx
+  on public.bookmarks (user_id, created_at desc);
+
+create index if not exists progress_entries_user_created_idx
+  on public.progress_entries (user_id, created_at desc);
+
+create index if not exists community_posts_created_idx
+  on public.community_posts (created_at desc);
 
 alter table public.profiles enable row level security;
 alter table public.bookmarks enable row level security;

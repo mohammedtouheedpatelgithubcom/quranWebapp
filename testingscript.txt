@@ -1,0 +1,61 @@
+(
+echo ===== GIT STATUS =====
+git status
+
+echo ===== BRANCHES =====
+git branch -vv
+
+echo ===== PACKAGE.JSON =====
+type package.json
+
+echo ===== APP DIR =====
+dir app
+
+echo ===== SRC DIR =====
+dir src
+
+echo ===== APP PAGE =====
+type app\page.tsx
+
+echo ===== SRC APP PAGE =====
+type src\app\page.tsx
+
+echo ===== NEXT CONFIG TS =====
+type next.config.ts
+
+echo ===== NEXT CONFIG JS =====
+type next.config.js
+
+echo ===== TSCONFIG =====
+type tsconfig.json
+) > debug.txt(
+echo ===== GIT STATUS =====
+git status
+
+echo ===== BRANCHES =====
+git branch -vv
+
+echo ===== PACKAGE.JSON =====
+type package.json
+
+echo ===== APP DIR =====
+dir app
+
+echo ===== SRC DIR =====
+dir src
+
+echo ===== APP PAGE =====
+type app\page.tsx
+
+echo ===== SRC APP PAGE =====
+type src\app\page.tsx
+
+echo ===== NEXT CONFIG TS =====
+type next.config.ts
+
+echo ===== NEXT CONFIG JS =====
+type next.config.js
+
+echo ===== TSCONFIG =====
+type tsconfig.json
+) > debug.txt

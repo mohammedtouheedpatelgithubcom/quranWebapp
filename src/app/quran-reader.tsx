@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
+import type { Session } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient, hasSupabaseConfig } from "@/lib/supabase";
 
 type VerseItem = {
@@ -65,17 +66,6 @@ type CommunityPost = {
   likes_count: number;
 };
 
-type BookmarkRecord = {
-  chapter: number;
-  verse: number;
-  note?: string | null;
-};
-
-type ProgressRecord = {
-  chapter: number;
-  verse: number;
-};
-
 const DEMO_PROFILE: UserProfile = {
   id: "demo-user",
   display_name: "Noor Reader",
@@ -116,12 +106,9 @@ const DEMO_COMMUNITY_POSTS: CommunityPost[] = [
   },
 ];
 
-const DEFAULT_TRANSLATION = "eng-abdullahyusufal";
 const BOOKMARKS_STORAGE_KEY = "noor-bookmarks";
 const PROGRESS_STORAGE_KEY = "noor-progress";
-const LOCAL_AUTH_USERS_KEY = "noor-local-auth-users";
 const LOCAL_AUTH_SESSION_KEY = "noor-local-auth-session";
-const MAX_PREVIEW_VERSES = 12;
 const RECITER = "AbdulSamad_64kbps_QuranExplorer.Com";
 const AUDIO_BASE = `https://everyayah.com/data/${RECITER}`;
 const BACKEND_HINT = hasSupabaseConfig ? "connected" : "demo-mode";
@@ -267,6 +254,7 @@ export default function QuranReader({
   initialChapter,
   initialTranslation,
 }: QuranReaderProps) {
+  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const chapterCount = info?.chapters.length ?? 114;
   const verseCount = info?.verses.count ?? 6236;
@@ -290,37 +278,35 @@ export default function QuranReader({
   const [learningTheme, setLearningTheme] = useState("");
   const [goalInput, setGoalInput] = useState("7");
   const [communityDraft, setCommunityDraft] = useState("");
-  const [communityVerse, setCommunityVerse] = useState("1");
+  const [communityChapter, setCommunityChapter] = useState(String(initialChapter));
+  const [communityVerse, setCommunityVerse] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    setChapterNumber(initialChapter);
-  }, [initialChapter]);
-
-  useEffect(() => {
-    setTranslationSlug(initialTranslation);
-  }, [initialTranslation]);
-
-  useEffect(() => {
-    setBookmarks(loadLocalStorageSet(BOOKMARKS_STORAGE_KEY));
-    setProgress(loadLocalStorageSet(PROGRESS_STORAGE_KEY));
+    queueMicrotask(() => {
+      setBookmarks(loadLocalStorageSet(BOOKMARKS_STORAGE_KEY));
+      setProgress(loadLocalStorageSet(PROGRESS_STORAGE_KEY));
+    });
   }, []);
 
   useEffect(() => {
     if (!supabase) {
-      const savedSession = loadLocalJson<Session | null>(LOCAL_AUTH_SESSION_KEY, null);
-      if (savedSession) {
-        setSession(savedSession);
-        setProfile(loadLocalProfile(savedSession.user.id, initialChapter));
-        setDisplayName(loadLocalProfile(savedSession.user.id, initialChapter).display_name);
-        setLearningTheme(loadLocalProfile(savedSession.user.id, initialChapter).learning_theme);
-        setGoalInput(String(loadLocalProfile(savedSession.user.id, initialChapter).daily_goal));
-      } else {
-        setProfile(createFallbackProfile(initialChapter));
-        setDisplayName(DEMO_PROFILE.display_name);
-        setLearningTheme(DEMO_PROFILE.learning_theme);
-        setGoalInput(String(DEMO_PROFILE.daily_goal));
-      }
+      queueMicrotask(() => {
+        const savedSession = loadLocalJson<Session | null>(LOCAL_AUTH_SESSION_KEY, null);
+        if (savedSession) {
+          const localProfile = loadLocalProfile(savedSession.user.id, initialChapter);
+          setSession(savedSession);
+          setProfile(localProfile);
+          setDisplayName(localProfile.display_name);
+          setLearningTheme(localProfile.learning_theme);
+          setGoalInput(String(localProfile.daily_goal));
+        } else {
+          setProfile(createFallbackProfile(initialChapter));
+          setDisplayName(DEMO_PROFILE.display_name);
+          setLearningTheme(DEMO_PROFILE.learning_theme);
+          setGoalInput(String(DEMO_PROFILE.daily_goal));
+        }
+      });
       return;
     }
 
@@ -344,7 +330,6 @@ export default function QuranReader({
 
   useEffect(() => {
     if (!supabase || !session?.user) {
-      setCommunityPosts(DEMO_COMMUNITY_POSTS);
       return;
     }
 
@@ -390,9 +375,11 @@ export default function QuranReader({
 
   useEffect(() => {
     if (profile) {
-      setDisplayName(profile.display_name);
-      setLearningTheme(profile.learning_theme);
-      setGoalInput(String(profile.daily_goal));
+      queueMicrotask(() => {
+        setDisplayName(profile.display_name);
+        setLearningTheme(profile.learning_theme);
+        setGoalInput(String(profile.daily_goal));
+      });
     }
   }, [profile]);
 
@@ -419,7 +406,7 @@ export default function QuranReader({
         focus: "Selected chapter",
       };
   const selectedVerseCount = currentChapter?.verses.length ?? translationVerses.length;
-  const previewVerses = translationVerses.slice(0, MAX_PREVIEW_VERSES).map((verse, index) => ({
+  const previewVerses = translationVerses.map((verse, index) => ({
     verseNumber: verse.verse,
     arabic: arabicVerses[index]?.text ?? verse.text,
     translation: verse.text,
@@ -449,9 +436,10 @@ export default function QuranReader({
 
   function updateQuery(nextChapter: number, nextTranslation: string) {
     const nextUrl = buildQuery(nextChapter, nextTranslation);
-    window.history.replaceState({}, "", nextUrl);
     setChapterNumber(nextChapter);
     setTranslationSlug(nextTranslation);
+    setCommunityChapter(String(nextChapter));
+    router.push(nextUrl);
   }
 
   function toggleBookmark(verseNumber: number) {
@@ -511,40 +499,6 @@ export default function QuranReader({
         return;
       }
 
-      const users = loadLocalJson<Array<{ id: string; email: string; password: string }>>(LOCAL_AUTH_USERS_KEY, []);
-
-      if (authMode === "signup") {
-        const existing = users.find((user) => user.email === email);
-        if (existing) {
-          setAuthStatus("This email already has a local demo account.");
-          return;
-        }
-
-        const nextUser = { id: `local-${email}`, email, password };
-        users.push(nextUser);
-        saveLocalJson(LOCAL_AUTH_USERS_KEY, users);
-        const nextSession = createLocalSession(email);
-        setSession(nextSession);
-        saveLocalJson(LOCAL_AUTH_SESSION_KEY, nextSession);
-
-        const nextProfile = createFallbackProfile(initialChapter);
-        setProfile(nextProfile);
-        setDisplayName(nextProfile.display_name);
-        setLearningTheme(nextProfile.learning_theme);
-        setGoalInput(String(nextProfile.daily_goal));
-        saveLocalJson(`noor-local-profile-${nextSession.user.id}`, nextProfile);
-
-        setAuthStatus("Local demo signup created. You can now sign in on this browser.");
-        setAuthPassword("");
-        return;
-      }
-
-      const existing = users.find((user) => user.email === email && user.password === password);
-      if (!existing) {
-        setAuthStatus("Local demo login failed. Check your email and password or create a new account.");
-        return;
-      }
-
       const nextSession = createLocalSession(email);
       setSession(nextSession);
       saveLocalJson(LOCAL_AUTH_SESSION_KEY, nextSession);
@@ -555,7 +509,7 @@ export default function QuranReader({
       setLearningTheme(nextProfile.learning_theme);
       setGoalInput(String(nextProfile.daily_goal));
 
-      setAuthStatus("Signed in locally in demo mode.");
+      setAuthStatus(authMode === "signup" ? "Demo account created for this browser. Add Supabase to enable real secure auth." : "Signed in locally in demo mode.");
       setAuthPassword("");
       return;
     }
@@ -657,16 +611,24 @@ export default function QuranReader({
 
   async function publishCommunityPost() {
     const body = communityDraft.trim();
+    const selectedChapter = Number(communityChapter) || chapterNumber;
+    const selectedVerse = communityVerse.trim() ? Number(communityVerse) : null;
+
     if (!body) {
       setAuthStatus("Write something first.");
+      return;
+    }
+
+    if (selectedChapter < 1 || selectedChapter > 114 || (selectedVerse !== null && selectedVerse < 1)) {
+      setAuthStatus("Choose a valid chapter between 1 and 114 and an optional positive verse number.");
       return;
     }
 
     const nextPost: CommunityPost = {
       id: `local-${Date.now()}`,
       display_name: profile?.display_name ?? "Guest Reader",
-      chapter: Number(communityVerse) || chapterNumber,
-      verse: Number(communityVerse) || null,
+      chapter: selectedChapter,
+      verse: selectedVerse,
       body,
       created_at: new Date().toISOString(),
       likes_count: 0,
@@ -695,6 +657,7 @@ export default function QuranReader({
     }
 
     setCommunityDraft("");
+    setCommunityVerse("");
   }
 
   return (
@@ -706,14 +669,17 @@ export default function QuranReader({
               Noor
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-stone-950 sm:text-3xl">
-              A Quran reader with search, bookmarks, progress, and audio.
+              Noor Quran Companion
             </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
+              A focused Quran reader with Arabic text, translation, recitation, bookmarks, progress, and account sync.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <a href="#today" className="rounded-full border border-stone-900/10 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:-translate-y-0.5 hover:border-amber-500/30 hover:text-stone-950">Today</a>
             <a href="#chapters" className="rounded-full border border-stone-900/10 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:-translate-y-0.5 hover:border-amber-500/30 hover:text-stone-950">Chapters</a>
-            <a href="#translations" className="rounded-full border border-stone-900/10 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:-translate-y-0.5 hover:border-amber-500/30 hover:text-stone-950">Translations</a>
+            <a href="#reader" className="rounded-full border border-stone-900/10 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:-translate-y-0.5 hover:border-amber-500/30 hover:text-stone-950">Reader</a>
             <a href="#audio" className="rounded-full border border-stone-900/10 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:-translate-y-0.5 hover:border-amber-500/30 hover:text-stone-950">Audio</a>
           </div>
         </header>
@@ -759,7 +725,7 @@ export default function QuranReader({
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-stone-500">Featured verse</p>
                 <div className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
                   <div className="rounded-[1.5rem] bg-stone-950 p-5 text-white shadow-[0_18px_34px_-24px_rgba(28,25,23,0.85)]">
-                    <p className="text-right text-4xl leading-tight font-semibold text-amber-100 sm:text-5xl">{heroVerse.arabic}</p>
+                    <p dir="rtl" lang="ar" className="text-right text-4xl leading-tight font-semibold text-amber-100 sm:text-5xl">{heroVerse.arabic}</p>
                     <p className="mt-4 text-sm font-medium uppercase tracking-[0.32em] text-stone-400">Verse {heroVerse.verseNumber}</p>
                   </div>
                   <div className="space-y-4">
@@ -919,13 +885,13 @@ export default function QuranReader({
             </div>
           </article>
 
-          <article className="rounded-[2rem] border border-stone-900/10 bg-white/84 p-6 shadow-[0_18px_50px_-34px_rgba(28,25,23,0.45)] backdrop-blur-sm sm:p-7">
+          <article id="reader" className="rounded-[2rem] border border-stone-900/10 bg-white/84 p-6 shadow-[0_18px_50px_-34px_rgba(28,25,23,0.45)] backdrop-blur-sm sm:p-7">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-stone-500">Verse preview</p>
-                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-950">Tap bookmark and progress actions on any verse card.</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-stone-500">Reader</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-950">{selectedChapterCard.name} with Arabic, translation, and ayah actions.</h3>
               </div>
-              <p className="text-sm text-stone-600">Showing the first {Math.min(MAX_PREVIEW_VERSES, previewVerses.length)} verses.</p>
+              <p className="text-sm text-stone-600">{previewVerses.length} verses</p>
             </div>
 
             <div className="mt-6 grid gap-4">
@@ -950,7 +916,7 @@ export default function QuranReader({
                     </div>
 
                     <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
-                      <p className="text-right text-2xl leading-[2] text-stone-950 sm:text-3xl">{verse.arabic}</p>
+                      <p dir="rtl" lang="ar" className="text-right text-2xl leading-[2] text-stone-950 sm:text-3xl">{verse.arabic}</p>
                       <p className="text-base leading-8 text-stone-700 sm:text-lg">{verse.translation}</p>
                     </div>
 
@@ -1015,7 +981,7 @@ export default function QuranReader({
                     value={authPassword}
                     onChange={(event) => setAuthPassword(event.target.value)}
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="Password"
                     className="rounded-2xl border border-stone-900/10 bg-stone-50 px-4 py-3 text-sm text-stone-900 outline-none focus:border-amber-500/40"
                   />
                 </label>
@@ -1129,11 +1095,22 @@ export default function QuranReader({
                 <label className="grid gap-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.28em] text-stone-500">Chapter</span>
                   <input
+                    value={communityChapter}
+                    onChange={(event) => setCommunityChapter(event.target.value)}
+                    type="number"
+                    min="1"
+                    max="114"
+                    className="rounded-2xl border border-stone-900/10 bg-white px-4 py-3 text-sm text-stone-900 outline-none focus:border-amber-500/40"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.28em] text-stone-500">Verse</span>
+                  <input
                     value={communityVerse}
                     onChange={(event) => setCommunityVerse(event.target.value)}
                     type="number"
                     min="1"
-                    max="114"
+                    placeholder="Optional"
                     className="rounded-2xl border border-stone-900/10 bg-white px-4 py-3 text-sm text-stone-900 outline-none focus:border-amber-500/40"
                   />
                 </label>
@@ -1159,7 +1136,7 @@ export default function QuranReader({
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-base font-semibold text-stone-950">{post.display_name}</p>
-                      <p className="text-sm text-stone-500">{getChapterLabel(post.chapter)} {post.verse ? `· Verse ${post.verse}` : ""}</p>
+                      <p className="text-sm text-stone-500">{getChapterLabel(post.chapter)} {post.verse ? ` - Verse ${post.verse}` : ""}</p>
                     </div>
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-amber-900">
                       {post.likes_count} likes
@@ -1181,7 +1158,6 @@ export default function QuranReader({
           </p>
         </section>
 
-        <audio ref={audioRef} className="hidden" controls onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />
       </section>
     </main>
   );

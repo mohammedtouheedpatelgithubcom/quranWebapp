@@ -48,15 +48,21 @@ const API_VERSION = "1";
 const BASE_URL = `https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@${API_VERSION}`;
 const ARABIC_EDITION = "ara-quranuthmanihaf";
 const DEFAULT_TRANSLATION = "eng-abdullahyusufal";
+const API_TIMEOUT_MS = 4500;
 
 async function fetchJson<T>(path: string): Promise<T | null> {
   for (const suffix of [".min.json", ".json"]) {
-    const response = await fetch(`${BASE_URL}/${path}${suffix}`, {
-      next: { revalidate: 60 * 60 * 24 },
-    });
+    try {
+      const response = await fetch(`${BASE_URL}/${path}${suffix}`, {
+        next: { revalidate: 60 * 60 * 24 },
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      });
 
-    if (response.ok) {
-      return (await response.json()) as T;
+      if (response.ok) {
+        return (await response.json()) as T;
+      }
+    } catch {
+      continue;
     }
   }
 
@@ -102,6 +108,7 @@ export default async function Page({ searchParams }: QuranPageProps) {
 
   return (
     <QuranReader
+      key={`${chapterNumber}-${translationSlug}`}
       info={info}
       arabicVerses={arabicResponse?.chapter ?? []}
       translationVerses={translationResponse?.chapter ?? []}
