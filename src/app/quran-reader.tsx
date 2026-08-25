@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient, hasSupabaseConfig } from "@/lib/supabase";
 
@@ -254,7 +253,6 @@ export default function QuranReader({
   initialChapter,
   initialTranslation,
 }: QuranReaderProps) {
-  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const chapterCount = info?.chapters.length ?? 114;
   const verseCount = info?.verses.count ?? 6236;
@@ -281,6 +279,8 @@ export default function QuranReader({
   const [communityChapter, setCommunityChapter] = useState(String(initialChapter));
   const [communityVerse, setCommunityVerse] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const continuePlaybackRef = useRef(false);
+  const autoStartHandledRef = useRef(false);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -390,6 +390,21 @@ export default function QuranReader({
     audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
   }, [activeVerse]);
 
+  useEffect(() => {
+    if (autoStartHandledRef.current || translationVerses.length === 0 || typeof window === "undefined") return;
+
+    const shouldAutoStart = new URLSearchParams(window.location.search).get("autoplay") === "1";
+    if (!shouldAutoStart) {
+      autoStartHandledRef.current = true;
+      return;
+    }
+
+    autoStartHandledRef.current = true;
+    continuePlaybackRef.current = true;
+    setActiveVerse({ chapter: initialChapter, verse: translationVerses[0].verse });
+    window.history.replaceState({}, "", `${buildQuery(initialChapter, initialTranslation)}#reader`);
+  }, [initialChapter, initialTranslation, translationVerses]);
+
   const currentChapter = info?.chapters.find((item) => item.chapter === chapterNumber);
   const translationLabel = translationMenu.find((item) => item.slug === translationSlug)?.label ?? translationMenu[0].label;
   const selectedChapterCard = currentChapter
@@ -434,12 +449,10 @@ export default function QuranReader({
     }).slice(0, 18);
   }, [chapterSearch, info]);
 
-  function updateQuery(nextChapter: number, nextTranslation: string) {
+  function updateQuery(nextChapter: number, nextTranslation: string, autoplay = false) {
     const nextUrl = buildQuery(nextChapter, nextTranslation);
-    setChapterNumber(nextChapter);
-    setTranslationSlug(nextTranslation);
-    setCommunityChapter(String(nextChapter));
-    router.push(nextUrl);
+    const playbackQuery = autoplay ? "&autoplay=1" : "";
+    window.location.assign(`${nextUrl}${playbackQuery}#reader`);
   }
 
   function toggleBookmark(verseNumber: number) {
@@ -474,6 +487,7 @@ export default function QuranReader({
   }
 
   function playVerse(verseNumber: number) {
+    continuePlaybackRef.current = true;
     setActiveVerse({ chapter: chapterNumber, verse: verseNumber });
   }
 
@@ -482,11 +496,46 @@ export default function QuranReader({
     if (!audio) return;
 
     if (audio.paused) {
+      continuePlaybackRef.current = true;
       audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     } else {
+      continuePlaybackRef.current = false;
       audio.pause();
       setIsPlaying(false);
     }
+  }
+
+  function stopAudio() {
+    const audio = audioRef.current;
+    continuePlaybackRef.current = false;
+    audio?.pause();
+    if (audio) {
+      audio.currentTime = 0;
+    }
+    setActiveVerse(null);
+    setIsPlaying(false);
+  }
+
+  function handleAudioEnded() {
+    if (!activeVerse) return;
+
+    markProgress(activeVerse.verse);
+    if (!continuePlaybackRef.current) {
+      setIsPlaying(false);
+      return;
+    }
+
+    const currentIndex = translationVerses.findIndex((verse) => verse.verse === activeVerse.verse);
+    const nextVerse = translationVerses[currentIndex + 1];
+
+    if (!nextVerse) {
+      continuePlaybackRef.current = false;
+      setIsPlaying(false);
+      setActiveVerse(null);
+      return;
+    }
+
+    setActiveVerse({ chapter: chapterNumber, verse: nextVerse.verse });
   }
 
   async function handleAuthSubmit() {
@@ -791,7 +840,14 @@ export default function QuranReader({
                   onClick={toggleAudio}
                   className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-white transition hover:bg-white/10"
                 >
-                  {isPlaying ? "Pause audio" : "Play / pause"}
+                  {isPlaying ? "Pause audio" : "Play audio"}
+                </button>
+                <button
+                  type="button"
+                  onClick={stopAudio}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-white transition hover:bg-white/10"
+                >
+                  Stop audio
                 </button>
               </div>
               <audio
@@ -800,6 +856,7 @@ export default function QuranReader({
                 className="mt-5 w-full"
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
+                onEnded={handleAudioEnded}
               />
               {activeVerse ? (
                 <p className="mt-4 text-sm text-stone-300">
@@ -836,7 +893,7 @@ export default function QuranReader({
                 <button
                   key={item.chapter}
                   type="button"
-                  onClick={() => updateQuery(item.chapter, translationSlug)}
+                  onClick={() => updateQuery(item.chapter, translationSlug, true)}
                   className={`rounded-[1.5rem] border p-5 text-left transition hover:-translate-y-0.5 ${active ? "border-amber-500/40 bg-amber-50 shadow-[0_16px_36px_-24px_rgba(217,119,6,0.5)]" : "border-stone-900/8 bg-stone-50 hover:border-amber-500/25 hover:bg-white"}`}
                 >
                   <div className="flex items-start justify-between gap-4">
