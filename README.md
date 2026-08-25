@@ -32,6 +32,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+The local development server is the recommended way to test changes. It supports Quran API loading, all surah navigation, translations, EveryAyah audio, local demo accounts, bookmarks, progress, and the optional Supabase backend.
+
 Useful checks:
 
 ```bash
@@ -74,11 +76,11 @@ Vercel is the recommended deployment target for this app.
 
 ### Firebase Hosting
 
-Use Firebase only if you are comfortable deploying a Next.js app with Firebase App Hosting or another SSR-compatible setup. Classic static Firebase Hosting is not enough for server-rendered Next routes.
+Use Firebase only if you are comfortable deploying the static `out` export or using Firebase App Hosting. The current GitHub Pages version is a static export.
 
 ### GitHub Pages
 
-GitHub Pages is not recommended for the backend-enabled version because the app uses server rendering and hosted auth. Use Vercel for the simplest production path.
+GitHub Pages hosts the public demo as a static export. Quran data and audio load in the browser from the external Quran API and EveryAyah sources. Local demo accounts, bookmarks, and progress work in the browser; real shared account sync requires Supabase variables.
 
 ### GitHub Pages Deployment
 
@@ -86,7 +88,23 @@ This repository now includes a GitHub Actions workflow at `.github/workflows/dep
 
 `https://mohammedtouheedpatelgithubcom.github.io/quranWebapp/`
 
-After the first push, open the repository settings, choose **Pages**, set **Source** to **GitHub Actions**, and rerun the workflow from the **Actions** tab if needed. Quran text, surah navigation, translations, bookmarks, progress, and audio work in the static version. Supabase-backed account sync requires the public Supabase environment variables to be added to the workflow.
+After the first push, open the repository settings, choose **Pages**, set **Source** to **GitHub Actions**, and rerun the workflow from the **Actions** tab if needed. Quran text, surah navigation, translations, bookmarks, progress, and audio work in the static demo. Supabase-backed account sync requires the public Supabase environment variables to be added to the workflow.
+
+## Demo Website
+
+The deployed GitHub Pages demo is available at:
+
+[https://mohammedtouheedpatelgithubcom.github.io/quranWebapp/](https://mohammedtouheedpatelgithubcom.github.io/quranWebapp/)
+
+To run the same project on a local server:
+
+```bash
+cd quranWebapp
+npm install
+npm run dev
+```
+
+Then open [http://localhost:3000](http://localhost:3000). For a local production-style check, run `npm run build`; the static output is generated in `out/`.
 
 ## Performance Notes
 
@@ -106,7 +124,7 @@ After the first push, open the repository settings, choose **Pages**, set **Sour
 ## Project Structure
 
 ```text
-src/app/page.tsx          Server data loading and query parsing
+src/app/page.tsx          Browser data loading and query parsing
 src/app/quran-reader.tsx  Main reader, auth, progress, audio, and community UI
 src/lib/supabase.ts       Browser Supabase client factory
 supabase/schema.sql       Backend tables, RLS policies, constraints, and indexes
