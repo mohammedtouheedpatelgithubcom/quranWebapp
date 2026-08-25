@@ -80,6 +80,14 @@ Use Firebase only if you are comfortable deploying a Next.js app with Firebase A
 
 GitHub Pages is not recommended for the backend-enabled version because the app uses server rendering and hosted auth. Use Vercel for the simplest production path.
 
+### GitHub Pages Deployment
+
+This repository now includes a GitHub Actions workflow at `.github/workflows/deploy-pages.yml`. It builds a static export and deploys it to:
+
+`https://mohammedtouheedpatelgithubcom.github.io/quranWebapp/`
+
+After the first push, open the repository settings, choose **Pages**, set **Source** to **GitHub Actions**, and rerun the workflow from the **Actions** tab if needed. Quran text, surah navigation, translations, bookmarks, progress, and audio work in the static version. Supabase-backed account sync requires the public Supabase environment variables to be added to the workflow.
+
 ## Performance Notes
 
 - Quran API fetches are cached with a 24-hour revalidation window.

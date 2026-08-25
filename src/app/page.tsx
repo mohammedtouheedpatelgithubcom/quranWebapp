@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import QuranReader from "./quran-reader";
 
 type VerseItem = {
@@ -35,15 +38,6 @@ type QuranInfo = {
   chapters: ChapterMeta[];
 };
 
-type SearchParams = {
-  chapter?: string;
-  translation?: string;
-};
-
-type QuranPageProps = {
-  searchParams?: Promise<SearchParams>;
-};
-
 const API_VERSION = "1";
 const BASE_URL = `https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@${API_VERSION}`;
 const ARABIC_EDITION = "ara-quranuthmanihaf";
@@ -54,7 +48,6 @@ async function fetchJson<T>(path: string): Promise<T | null> {
   for (const suffix of [".min.json", ".json"]) {
     try {
       const response = await fetch(`${BASE_URL}/${path}${suffix}`, {
-        next: { revalidate: 60 * 60 * 24 },
         signal: AbortSignal.timeout(API_TIMEOUT_MS),
       });
 
@@ -93,25 +86,44 @@ function parseTranslation(value?: string) {
   return DEFAULT_TRANSLATION;
 }
 
-export const dynamic = "force-dynamic";
+export default function Page() {
+  const [chapterNumber, setChapterNumber] = useState(1);
+  const [translationSlug, setTranslationSlug] = useState(DEFAULT_TRANSLATION);
+  const [info, setInfo] = useState<QuranInfo | null>(null);
+  const [arabicVerses, setArabicVerses] = useState<VerseItem[]>([]);
+  const [translationVerses, setTranslationVerses] = useState<VerseItem[]>([]);
 
-export default async function Page({ searchParams }: QuranPageProps) {
-  const resolvedSearchParams = (await searchParams) ?? {};
-  const chapterNumber = parseChapterNumber(resolvedSearchParams.chapter);
-  const translationSlug = parseTranslation(resolvedSearchParams.translation);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setChapterNumber(parseChapterNumber(params.get("chapter") ?? undefined));
+    setTranslationSlug(parseTranslation(params.get("translation") ?? undefined));
+  }, []);
 
-  const [info, arabicResponse, translationResponse] = await Promise.all([
-    fetchJson<QuranInfo>("info"),
-    fetchJson<ChapterResponse>(`editions/${ARABIC_EDITION}/${chapterNumber}`),
-    fetchJson<ChapterResponse>(`editions/${translationSlug}/${chapterNumber}`),
-  ]);
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([
+      fetchJson<QuranInfo>("info"),
+      fetchJson<ChapterResponse>(`editions/${ARABIC_EDITION}/${chapterNumber}`),
+      fetchJson<ChapterResponse>(`editions/${translationSlug}/${chapterNumber}`),
+    ]).then(([nextInfo, arabicResponse, translationResponse]) => {
+      if (cancelled) return;
+      setInfo(nextInfo);
+      setArabicVerses(arabicResponse?.chapter ?? []);
+      setTranslationVerses(translationResponse?.chapter ?? []);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chapterNumber, translationSlug]);
 
   return (
     <QuranReader
       key={`${chapterNumber}-${translationSlug}`}
       info={info}
-      arabicVerses={arabicResponse?.chapter ?? []}
-      translationVerses={translationResponse?.chapter ?? []}
+      arabicVerses={arabicVerses}
+      translationVerses={translationVerses}
       initialChapter={chapterNumber}
       initialTranslation={translationSlug}
     />
