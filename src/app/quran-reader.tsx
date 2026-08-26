@@ -266,6 +266,7 @@ export default function QuranReader({
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(DEMO_COMMUNITY_POSTS);
+  const [visitorCount, setVisitorCount] = useState<number | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -281,6 +282,20 @@ export default function QuranReader({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const continuePlaybackRef = useRef(false);
   const autoStartHandledRef = useRef(false);
+
+  useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    supabase
+      .rpc("record_site_visit")
+      .then(({ data, error }) => {
+        if (!error && typeof data === "number") {
+          setVisitorCount(data);
+        }
+      });
+  }, [supabase]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -728,6 +743,11 @@ export default function QuranReader({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {visitorCount !== null ? (
+              <span className="rounded-full border border-amber-900/10 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900" title="Total visits to Noor">
+                {visitorCount.toLocaleString()} visitors
+              </span>
+            ) : null}
             <a href="#today" className="rounded-full border border-stone-900/10 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:-translate-y-0.5 hover:border-amber-500/30 hover:text-stone-950">Today</a>
             <a href="#chapters" className="rounded-full border border-stone-900/10 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:-translate-y-0.5 hover:border-amber-500/30 hover:text-stone-950">Chapters</a>
             <a href="#reader" className="rounded-full border border-stone-900/10 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:-translate-y-0.5 hover:border-amber-500/30 hover:text-stone-950">Reader</a>

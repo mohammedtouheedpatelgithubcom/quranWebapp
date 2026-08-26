@@ -40,6 +40,15 @@ create table if not exists public.community_posts (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.site_stats (
+  id boolean primary key default true check (id),
+  visitor_count bigint not null default 0 check (visitor_count >= 0)
+);
+
+insert into public.site_stats (id, visitor_count)
+values (true, 0)
+on conflict (id) do nothing;
+
 create index if not exists bookmarks_user_created_idx
   on public.bookmarks (user_id, created_at desc);
 
@@ -53,6 +62,28 @@ alter table public.profiles enable row level security;
 alter table public.bookmarks enable row level security;
 alter table public.progress_entries enable row level security;
 alter table public.community_posts enable row level security;
+alter table public.site_stats enable row level security;
+
+create or replace function public.record_site_visit()
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_count bigint;
+begin
+  update public.site_stats
+  set visitor_count = visitor_count + 1
+  where id = true
+  returning visitor_count into next_count;
+
+  return next_count;
+end;
+$$;
+
+revoke all on function public.record_site_visit() from public;
+grant execute on function public.record_site_visit() to anon, authenticated;
 
 do $$
 begin
