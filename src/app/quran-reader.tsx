@@ -1000,7 +1000,20 @@ export default function QuranReader({
                       <p className="text-base leading-8 text-stone-700 sm:text-lg">{verse.translation}</p>
                     </div>
 
-                    <div className="mt-5 flex flex-wrap gap-3 text-sm font-medium">
+                    <div className="mt-5 rounded-[1.2rem] border border-stone-900/8 bg-white/80 p-3">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500">Ayah audio</p>
+                        <span className="text-xs text-stone-500">Play, pause, or seek</span>
+                      </div>
+                      <audio
+                        controls
+                        preload="none"
+                        src={verseAudioUrl(chapterNumber, verse.verseNumber)}
+                        className="h-10 w-full"
+                      />
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-3 text-sm font-medium">
                       <button
                         type="button"
                         onClick={() => playVerse(verse.verseNumber)}
