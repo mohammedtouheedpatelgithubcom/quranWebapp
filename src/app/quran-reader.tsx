@@ -291,8 +291,9 @@ export default function QuranReader({
     supabase
       .rpc("record_site_visit")
       .then(({ data, error }) => {
-        if (!error && typeof data === "number") {
-          setVisitorCount(data);
+        const nextVisitorCount = Number(data);
+        if (!error && Number.isSafeInteger(nextVisitorCount) && nextVisitorCount >= 0) {
+          setVisitorCount(nextVisitorCount);
         }
       });
   }, [supabase]);
