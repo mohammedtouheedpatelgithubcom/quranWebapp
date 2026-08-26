@@ -8,7 +8,9 @@ The app works in demo mode without backend credentials. Add Supabase environment
 
 - Quran chapter reader with Arabic text and selectable English translations.
 - Searchable surah menu and URL-based chapter/translation navigation.
-- Verse audio playback from EveryAyah.
+- Verse audio playback from EveryAyah with play, pause, stop, and continuous recitation controls.
+- Surah selection can start playback from the first verse, and playback advances through the chapter automatically.
+- Completed verses are marked as progress during continuous playback.
 - Local demo mode for bookmarks, progress, profile, and posting tests.
 - Supabase backend for auth, profiles, bookmarks, progress, and community posts.
 - Row level security, input constraints, and query indexes in `supabase/schema.sql`.
@@ -99,7 +101,7 @@ The deployed GitHub Pages demo is available at:
 To run the same project on a local server:
 
 ```bash
-cd quranWebapp
+cd quran-app
 npm install
 npm run dev
 ```

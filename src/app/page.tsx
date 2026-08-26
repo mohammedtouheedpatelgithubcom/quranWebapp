@@ -95,8 +95,10 @@ export default function Page() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setChapterNumber(parseChapterNumber(params.get("chapter") ?? undefined));
-    setTranslationSlug(parseTranslation(params.get("translation") ?? undefined));
+    queueMicrotask(() => {
+      setChapterNumber(parseChapterNumber(params.get("chapter") ?? undefined));
+      setTranslationSlug(parseTranslation(params.get("translation") ?? undefined));
+    });
   }, []);
 
   useEffect(() => {

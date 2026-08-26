@@ -256,8 +256,8 @@ export default function QuranReader({
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const chapterCount = info?.chapters.length ?? 114;
   const verseCount = info?.verses.count ?? 6236;
-  const [chapterNumber, setChapterNumber] = useState(initialChapter);
-  const [translationSlug, setTranslationSlug] = useState(initialTranslation);
+  const [chapterNumber] = useState(initialChapter);
+  const [translationSlug] = useState(initialTranslation);
   const [chapterSearch, setChapterSearch] = useState("");
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState<Set<string>>(new Set());
@@ -401,8 +401,10 @@ export default function QuranReader({
 
     autoStartHandledRef.current = true;
     continuePlaybackRef.current = true;
-    setActiveVerse({ chapter: initialChapter, verse: translationVerses[0].verse });
-    window.history.replaceState({}, "", `${buildQuery(initialChapter, initialTranslation)}#reader`);
+    queueMicrotask(() => {
+      setActiveVerse({ chapter: initialChapter, verse: translationVerses[0].verse });
+      window.history.replaceState({}, "", `${buildQuery(initialChapter, initialTranslation)}#reader`);
+    });
   }, [initialChapter, initialTranslation, translationVerses]);
 
   const currentChapter = info?.chapters.find((item) => item.chapter === chapterNumber);
