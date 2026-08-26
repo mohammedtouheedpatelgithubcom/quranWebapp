@@ -280,6 +280,7 @@ export default function QuranReader({
   const [communityChapter, setCommunityChapter] = useState(String(initialChapter));
   const [communityVerse, setCommunityVerse] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ayahAudioRefs = useRef<Record<number, HTMLAudioElement | null>>({});
   const continuePlaybackRef = useRef(false);
   const autoStartHandledRef = useRef(false);
 
@@ -530,8 +531,44 @@ export default function QuranReader({
     if (audio) {
       audio.currentTime = 0;
     }
+    Object.values(ayahAudioRefs.current).forEach((ayahAudio) => {
+      ayahAudio?.pause();
+      if (ayahAudio) {
+        ayahAudio.currentTime = 0;
+      }
+    });
     setActiveVerse(null);
     setIsPlaying(false);
+  }
+
+  function handleAyahAudioPlay(verseNumber: number) {
+    const sharedAudio = audioRef.current;
+    sharedAudio?.pause();
+    if (sharedAudio) {
+      sharedAudio.currentTime = 0;
+    }
+    continuePlaybackRef.current = false;
+    setActiveVerse(null);
+    setIsPlaying(false);
+
+    Object.entries(ayahAudioRefs.current).forEach(([key, ayahAudio]) => {
+      if (Number(key) !== verseNumber) {
+        ayahAudio?.pause();
+      }
+    });
+  }
+
+  function handleAyahAudioEnded(verseNumber: number) {
+    markProgress(verseNumber);
+    const currentIndex = translationVerses.findIndex((verse) => verse.verse === verseNumber);
+    const nextVerse = translationVerses[currentIndex + 1];
+
+    if (!nextVerse) {
+      return;
+    }
+
+    const nextAudio = ayahAudioRefs.current[nextVerse.verse];
+    nextAudio?.play().catch(() => undefined);
   }
 
   function handleAudioEnded() {
@@ -1009,6 +1046,11 @@ export default function QuranReader({
                         controls
                         preload="none"
                         src={verseAudioUrl(chapterNumber, verse.verseNumber)}
+                        ref={(audio) => {
+                          ayahAudioRefs.current[verse.verseNumber] = audio;
+                        }}
+                        onPlay={() => handleAyahAudioPlay(verse.verseNumber)}
+                        onEnded={() => handleAyahAudioEnded(verse.verseNumber)}
                         className="h-10 w-full"
                       />
                     </div>
