@@ -13,8 +13,63 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Noor | Quran Companion",
-  description: "A calm Quran reading and reflection web app built with Next.js.",
+  metadataBase: new URL("https://mohammedtouheedpatelgithubcom.github.io/quranWebapp/"),
+  title: {
+    default: "Noor Quran Companion | Read the Quran Online",
+    template: "%s | Noor Quran Companion",
+  },
+  description:
+    "Read the Quran online with Arabic text, English translations, verse audio, bookmarks, and gentle reading progress tracking.",
+  applicationName: "Noor Quran Companion",
+  keywords: [
+    "Quran online",
+    "read Quran",
+    "Quran with English translation",
+    "Quran audio",
+    "Arabic Quran",
+    "surah reader",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "Noor Quran Companion",
+    title: "Noor Quran Companion | Read the Quran Online",
+    description:
+      "Read the Quran online with Arabic text, English translations, verse audio, bookmarks, and reading progress tracking.",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary",
+    title: "Noor Quran Companion | Read the Quran Online",
+    description:
+      "Read the Quran online with Arabic text, English translations, verse audio, and bookmarks.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+};
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "Noor Quran Companion",
+  url: "https://mohammedtouheedpatelgithubcom.github.io/quranWebapp/",
+  description:
+    "Read the Quran online with Arabic text, English translations, verse audio, bookmarks, and reading progress tracking.",
+  applicationCategory: "EducationalApplication",
+  operatingSystem: "Any",
+  inLanguage: ["en", "ar"],
 };
 
 export default function RootLayout({
@@ -27,7 +82,13 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
+        {children}
+      </body>
     </html>
   );
 }
